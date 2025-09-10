@@ -4,22 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Handshake, 
-  DollarSign, 
-  Target, 
-  Calendar, 
-  Plus, 
-  Award, 
-  TrendingUp,
-  Download,
-  Upload
-} from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Search, DollarSign, Target, TrendingUp, Plus, Users, Award, Calendar } from 'lucide-react';
 import { User } from '../App';
 
 interface FundraisingProps {
@@ -29,15 +20,33 @@ interface FundraisingProps {
 
 interface Campaign {
   id: string;
-  name: string;
+  title: string;
   description: string;
-  goal: number;
-  raised: number;
+  category: 'general' | 'scholarship' | 'charity' | 'event';
+  goalAmount: number;
+  raisedAmount: number;
   startDate: string;
   endDate: string;
-  status: 'active' | 'completed' | 'upcoming';
-  type: 'chapter' | 'regional' | 'national' | 'scholarship';
-  beneficiary: string;
+  status: 'active' | 'completed' | 'paused';
+  organizer: string;
+  participants: string[];
+  region?: string;
+  chapter?: string;
+  donationCount: number;
+}
+
+interface Scholarship {
+  id: string;
+  name: string;
+  description: string;
+  amount: number;
+  deadline: string;
+  requirements: string[];
+  applicants: number;
+  awarded: boolean;
+  recipient?: string;
+  fundedBy: string;
+  category: 'academic' | 'service' | 'leadership' | 'need-based';
 }
 
 interface Donation {
@@ -45,118 +54,225 @@ interface Donation {
   campaignId: string;
   donorName: string;
   amount: number;
-  date: string;
-  method: string;
-  notes?: string;
+  message?: string;
+  isAnonymous: boolean;
+  donatedAt: string;
+  memberId?: string;
 }
 
 const Fundraising = ({ user, onLogout }: FundraisingProps) => {
-  const [isNewCampaignDialogOpen, setIsNewCampaignDialogOpen] = useState(false);
-  const [isLogDonationDialogOpen, setIsLogDonationDialogOpen] = useState(false);
-  const [filterCampaignType, setFilterCampaignType] = useState('all');
-  const [filterCampaignStatus, setFilterCampaignStatus] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [isAddingCampaign, setIsAddingCampaign] = useState(false);
+  const [isAddingScholarship, setIsAddingScholarship] = useState(false);
+  const [newCampaign, setNewCampaign] = useState({
+    title: '',
+    description: '',
+    category: 'general' as 'general' | 'scholarship' | 'charity' | 'event',
+    goalAmount: 0,
+    endDate: '',
+  });
+  const [newScholarship, setNewScholarship] = useState({
+    name: '',
+    description: '',
+    amount: 0,
+    deadline: '',
+    requirements: '',
+    category: 'academic' as 'academic' | 'service' | 'leadership' | 'need-based'
+  });
 
-  // Mock Fundraising Campaigns
-  const [campaigns, setCampaigns] = useState<Campaign[]>([
+  // Mock campaigns data
+  const campaigns: Campaign[] = [
     {
       id: '1',
-      name: 'Annual Philanthropy Gala',
-      description: 'Our biggest event of the year to support local charities.',
-      goal: 25000,
-      raised: 18500,
-      startDate: '2024-03-01',
-      endDate: '2024-05-31',
+      title: 'Lambda Empire Scholarship Fund',
+      description: 'Supporting academic excellence among our members through merit-based scholarships',
+      category: 'scholarship',
+      goalAmount: 25000,
+      raisedAmount: 18750,
+      startDate: '2024-01-01',
+      endDate: '2024-06-30',
       status: 'active',
-      type: 'chapter',
-      beneficiary: 'Local Food Bank'
+      organizer: 'National HQ',
+      participants: ['LEM-2021-001', 'LEM-2022-015', 'LEM-2021-008'],
+      donationCount: 47
     },
     {
       id: '2',
-      name: 'National Scholarship Fund',
-      description: 'Supporting academic excellence across all chapters.',
-      goal: 50000,
-      raised: 42000,
-      startDate: '2024-01-01',
-      endDate: '2024-12-31',
-      status: 'active',
-      type: 'national',
-      beneficiary: 'Lambda Empire Scholarship'
+      title: 'Community Food Drive Initiative',
+      description: 'Raising funds to purchase food supplies for local food banks during the holiday season',
+      category: 'charity',
+      goalAmount: 5000,
+      raisedAmount: 5000,
+      startDate: '2024-02-01',
+      endDate: '2024-03-31',
+      status: 'completed',
+      organizer: 'Southeast Region',
+      participants: ['LEM-2022-015', 'LEM-2023-032'],
+      region: 'Southeast Region',
+      donationCount: 23
     },
     {
       id: '3',
-      name: 'Regional Leadership Conference',
-      description: 'Fundraising for our annual regional leadership development event.',
-      goal: 10000,
-      raised: 11500,
-      startDate: '2023-09-01',
-      endDate: '2023-11-30',
-      status: 'completed',
-      type: 'regional',
-      beneficiary: 'Regional Leadership Fund'
+      title: 'National Convention 2024',
+      description: 'Fundraising to support travel and accommodation for members attending the national convention',
+      category: 'event',
+      goalAmount: 15000,
+      raisedAmount: 8200,
+      startDate: '2024-03-01',
+      endDate: '2024-07-15',
+      status: 'active',
+      organizer: 'Regional Officer',
+      participants: ['LEM-2021-001', 'LEM-2022-023', 'LEM-2021-008'],
+      donationCount: 31
     },
     {
       id: '4',
-      name: 'Chapter House Renovation',
-      description: 'Help us renovate our beloved chapter house for future generations.',
-      goal: 15000,
-      raised: 5000,
-      startDate: '2024-07-01',
+      title: 'Chapter House Renovation',
+      description: 'Funding renovations and improvements to our chapter house facilities',
+      category: 'general',
+      goalAmount: 40000,
+      raisedAmount: 12300,
+      startDate: '2024-02-15',
       endDate: '2024-12-31',
-      status: 'upcoming',
-      type: 'chapter',
-      beneficiary: 'Chapter House Fund'
+      status: 'active',
+      organizer: 'Beta Chapter',
+      participants: ['LEM-2021-001', 'LEM-2022-015'],
+      chapter: 'Beta Chapter',
+      donationCount: 19
     }
-  ]);
+  ];
 
-  // Mock Donations
-  const [donations, setDonations] = useState<Donation[]>([
-    { id: 'd1', campaignId: '1', donorName: 'Alumni Association', amount: 5000, date: '2024-04-10', method: 'Bank Transfer' },
-    { id: 'd2', campaignId: '1', donorName: 'John Doe', amount: 100, date: '2024-04-12', method: 'Credit Card' },
-    { id: 'd3', campaignId: '2', donorName: 'Jane Smith', amount: 250, date: '2024-03-05', method: 'Credit Card' },
-    { id: 'd4', campaignId: '3', donorName: 'Regional Council', amount: 2000, date: '2023-10-20', method: 'Check' }
-  ]);
+  // Mock scholarships data
+  const scholarships: Scholarship[] = [
+    {
+      id: '1',
+      name: 'Excellence in Leadership Award',
+      description: 'Recognizing outstanding leadership contributions within Lambda Empire',
+      amount: 2500,
+      deadline: '2024-05-31',
+      requirements: ['Minimum 3.5 GPA', 'Leadership role in organization', 'Community service hours'],
+      applicants: 12,
+      awarded: false,
+      fundedBy: 'Alumni Association',
+      category: 'leadership'
+    },
+    {
+      id: '2',
+      name: 'Academic Achievement Scholarship',
+      description: 'Supporting members who demonstrate exceptional academic performance',
+      amount: 3000,
+      deadline: '2024-06-15',
+      requirements: ['Minimum 3.8 GPA', 'Full-time student status', 'Financial need documentation'],
+      applicants: 8,
+      awarded: true,
+      recipient: 'Sarah Johnson (LEM-2021-001)',
+      fundedBy: 'Lambda Empire Foundation',
+      category: 'academic'
+    },
+    {
+      id: '3',
+      name: 'Community Service Excellence',
+      description: 'Honoring members who go above and beyond in community service',
+      amount: 1500,
+      deadline: '2024-04-30',
+      requirements: ['50+ community service hours', 'Service project leadership', 'Impact documentation'],
+      applicants: 15,
+      awarded: false,
+      fundedBy: 'National HQ',
+      category: 'service'
+    },
+    {
+      id: '4',
+      name: 'Emergency Financial Assistance',
+      description: 'Providing support to members facing unexpected financial hardships',
+      amount: 1000,
+      deadline: '2024-12-31',
+      requirements: ['Demonstrated financial need', 'Active member status', 'Academic progress'],
+      applicants: 3,
+      awarded: false,
+      fundedBy: 'Member Donations',
+      category: 'need-based'
+    }
+  ];
+
+  // Mock donations data (recent donations)
+  const recentDonations: Donation[] = [
+    {
+      id: '1',
+      campaignId: '1',
+      donorName: 'Anonymous',
+      amount: 500,
+      message: 'Supporting our future leaders!',
+      isAnonymous: true,
+      donatedAt: '2024-03-20',
+      memberId: 'LEM-2021-001'
+    },
+    {
+      id: '2',
+      campaignId: '2',
+      donorName: 'Emma Wilson',
+      amount: 250,
+      message: 'Great cause for the community!',
+      isAnonymous: false,
+      donatedAt: '2024-03-19',
+      memberId: 'LEM-2022-015'
+    },
+    {
+      id: '3',
+      campaignId: '3',
+      donorName: 'Alumni Supporter',
+      amount: 1000,
+      isAnonymous: false,
+      donatedAt: '2024-03-18'
+    }
+  ];
 
   const filteredCampaigns = campaigns.filter(campaign => {
-    const matchesType = filterCampaignType === 'all' || campaign.type === filterCampaignType;
-    const matchesStatus = filterCampaignStatus === 'all' || campaign.status === filterCampaignStatus;
-    return matchesType && matchesStatus;
+    const matchesSearch = campaign.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         campaign.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = filterCategory === 'all' || campaign.category === filterCategory;
+    const matchesStatus = filterStatus === 'all' || campaign.status === filterStatus;
+
+    // Role-based filtering
+    if (user.role === 'regional' && user.region && campaign.region && campaign.region !== user.region) {
+      return false;
+    }
+    if (user.role === 'chapter' && user.chapter && campaign.chapter && campaign.chapter !== user.chapter) {
+      return false;
+    }
+
+    return matchesSearch && matchesCategory && matchesStatus;
   });
-
-  const handleCreateCampaign = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Logic to create new campaign
-    setIsNewCampaignDialogOpen(false);
-  };
-
-  const handleLogDonation = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Logic to log new donation
-    setIsLogDonationDialogOpen(false);
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'default';
-      case 'completed': return 'green';
-      case 'upcoming': return 'secondary';
+      case 'completed': return 'secondary';
+      case 'paused': return 'outline';
       default: return 'outline';
     }
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'chapter': return 'blue';
-      case 'regional': return 'purple';
-      case 'national': return 'destructive';
-      case 'scholarship': return 'amber';
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case 'scholarship': return 'default';
+      case 'charity': return 'secondary';
+      case 'event': return 'outline';
+      case 'general': return 'outline';
       default: return 'outline';
     }
   };
 
-  // Calculate overall statistics
-  const totalRaisedAcrossAllCampaigns = campaigns.reduce((sum, campaign) => sum + campaign.raised, 0);
-  const totalGoalAcrossAllCampaigns = campaigns.reduce((sum, campaign) => sum + campaign.goal, 0);
-  const overallProgress = totalGoalAcrossAllCampaigns > 0 ? (totalRaisedAcrossAllCampaigns / totalGoalAcrossAllCampaigns) * 100 : 0;
+  const getProgressPercentage = (raised: number, goal: number) => {
+    return Math.min((raised / goal) * 100, 100);
+  };
+
+  const totalRaised = campaigns.reduce((sum, campaign) => sum + campaign.raisedAmount, 0);
+  const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
+  const totalDonations = campaigns.reduce((sum, campaign) => sum + campaign.donationCount, 0);
 
   return (
     <Layout user={user} onLogout={onLogout}>
@@ -164,319 +280,442 @@ const Fundraising = ({ user, onLogout }: FundraisingProps) => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Fundraising</h1>
-            <p className="text-gray-600">Manage campaigns and track donations for all tiers</p>
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+              <DollarSign className="h-6 w-6 text-aqua-600" />
+              Fundraising & Scholarships
+            </h1>
+            <p className="text-gray-600">Manage campaigns and support Lambda Empire initiatives</p>
           </div>
-          {(user.role === 'admin' || user.role === 'national_hq' || user.role === 'regional' || user.role === 'chapter') && (
+          {(user.role === 'admin' || user.role === 'national_hq' || user.role === 'regional' || user.role === 'chapter' || user.role === 'officer') && (
             <div className="flex gap-2">
-              <Dialog open={isNewCampaignDialogOpen} onOpenChange={setIsNewCampaignDialogOpen}>
+              <Dialog open={isAddingCampaign} onOpenChange={setIsAddingCampaign}>
                 <DialogTrigger asChild>
-                  <Button variant="outline">
+                  <Button variant="outline" className="rounded-lg transition-all duration-300 hover:scale-[1.01]">
                     <Plus className="mr-2 h-4 w-4" />
                     New Campaign
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="sm:max-w-lg">
                   <DialogHeader>
                     <DialogTitle>Create New Campaign</DialogTitle>
-                    <DialogDescription>
-                      Set up a new fundraising initiative.
-                    </DialogDescription>
                   </DialogHeader>
-                  <form onSubmit={handleCreateCampaign} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="campaignName">Campaign Name</Label>
-                      <Input id="campaignName" placeholder="e.g., Annual Philanthropy Gala" required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="campaignGoal">Goal ($)</Label>
-                      <Input id="campaignGoal" type="number" min="0" step="1" placeholder="10000" required />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="startDate">Start Date</Label>
-                        <Input id="startDate" type="date" required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="endDate">End Date</Label>
-                        <Input id="endDate" type="date" required />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="campaignType">Campaign Type</Label>
-                      <Select required>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="chapter">Chapter</SelectItem>
-                          <SelectItem value="regional">Regional</SelectItem>
-                          <SelectItem value="national">National</SelectItem>
-                          <SelectItem value="scholarship">Scholarship</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="beneficiary">Beneficiary</Label>
-                      <Input id="beneficiary" placeholder="e.g., Local Food Bank" required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="campaignDescription">Description</Label>
-                      <Textarea 
-                        id="campaignDescription" 
-                        placeholder="Describe your campaign..."
-                        rows={3}
-                        required 
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Campaign Title</Label>
+                      <Input
+                        value={newCampaign.title}
+                        onChange={(e) => setNewCampaign({...newCampaign, title: e.target.value})}
+                        placeholder="Enter campaign title"
+                        className="rounded-lg"
                       />
                     </div>
-                    <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" onClick={() => setIsNewCampaignDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button type="submit">Create Campaign</Button>
+                    <div>
+                      <Label>Description</Label>
+                      <Textarea
+                        value={newCampaign.description}
+                        onChange={(e) => setNewCampaign({...newCampaign, description: e.target.value})}
+                        placeholder="Describe your campaign"
+                        className="rounded-lg"
+                      />
                     </div>
-                  </form>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Category</Label>
+                        <Select value={newCampaign.category} onValueChange={(value: any) => setNewCampaign({...newCampaign, category: value})}>
+                          <SelectTrigger className="rounded-lg">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="general">General</SelectItem>
+                            <SelectItem value="scholarship">Scholarship</SelectItem>
+                            <SelectItem value="charity">Charity</SelectItem>
+                            <SelectItem value="event">Event</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Goal Amount ($)</Label>
+                        <Input
+                          type="number"
+                          value={newCampaign.goalAmount || ''}
+                          onChange={(e) => setNewCampaign({...newCampaign, goalAmount: parseInt(e.target.value) || 0})}
+                          placeholder="0"
+                          className="rounded-lg"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>End Date</Label>
+                      <Input
+                        type="date"
+                        value={newCampaign.endDate}
+                        onChange={(e) => setNewCampaign({...newCampaign, endDate: e.target.value})}
+                        className="rounded-lg"
+                      />
+                    </div>
+                    <Button onClick={() => setIsAddingCampaign(false)} className="w-full rounded-lg">
+                      Create Campaign
+                    </Button>
+                  </div>
                 </DialogContent>
               </Dialog>
-
-              <Dialog open={isLogDonationDialogOpen} onOpenChange={setIsLogDonationDialogOpen}>
+              <Dialog open={isAddingScholarship} onOpenChange={setIsAddingScholarship}>
                 <DialogTrigger asChild>
-                  <Button>
-                    <DollarSign className="mr-2 h-4 w-4" />
-                    Log Donation
+                  <Button className="rounded-lg transition-all duration-300 hover:scale-[1.01]">
+                    <Award className="mr-2 h-4 w-4" />
+                    New Scholarship
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>Log New Donation</DialogTitle>
-                    <DialogDescription>
-                      Record a donation received for a campaign.
-                    </DialogDescription>
+                    <DialogTitle>Create New Scholarship</DialogTitle>
                   </DialogHeader>
-                  <form onSubmit={handleLogDonation} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="donationCampaign">Campaign</Label>
-                      <Select required>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select campaign" />
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Scholarship Name</Label>
+                      <Input
+                        value={newScholarship.name}
+                        onChange={(e) => setNewScholarship({...newScholarship, name: e.target.value})}
+                        placeholder="Enter scholarship name"
+                        className="rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <Label>Description</Label>
+                      <Textarea
+                        value={newScholarship.description}
+                        onChange={(e) => setNewScholarship({...newScholarship, description: e.target.value})}
+                        placeholder="Describe the scholarship"
+                        className="rounded-lg"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Amount ($)</Label>
+                        <Input
+                          type="number"
+                          value={newScholarship.amount || ''}
+                          onChange={(e) => setNewScholarship({...newScholarship, amount: parseInt(e.target.value) || 0})}
+                          placeholder="0"
+                          className="rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <Label>Deadline</Label>
+                        <Input
+                          type="date"
+                          value={newScholarship.deadline}
+                          onChange={(e) => setNewScholarship({...newScholarship, deadline: e.target.value})}
+                          className="rounded-lg"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Category</Label>
+                      <Select value={newScholarship.category} onValueChange={(value: any) => setNewScholarship({...newScholarship, category: value})}>
+                        <SelectTrigger className="rounded-lg">
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {campaigns.map(campaign => (
-                            <SelectItem key={campaign.id} value={campaign.id}>
-                              {campaign.name}
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="academic">Academic</SelectItem>
+                          <SelectItem value="service">Service</SelectItem>
+                          <SelectItem value="leadership">Leadership</SelectItem>
+                          <SelectItem value="need-based">Need-based</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="donorName">Donor Name</Label>
-                      <Input id="donorName" placeholder="e.g., John Doe" required />
+                    <div>
+                      <Label>Requirements (one per line)</Label>
+                      <Textarea
+                        value={newScholarship.requirements}
+                        onChange={(e) => setNewScholarship({...newScholarship, requirements: e.target.value})}
+                        placeholder="List requirements, one per line"
+                        className="rounded-lg"
+                        rows={4}
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="donationAmount">Amount ($)</Label>
-                      <Input id="donationAmount" type="number" min="0" step="0.01" placeholder="50.00" required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="donationDate">Date</Label>
-                      <Input id="donationDate" type="date" required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="paymentMethod">Payment Method</Label>
-                      <Select required>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select method" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="credit-card">Credit Card</SelectItem>
-                          <SelectItem value="bank-transfer">Bank Transfer</SelectItem>
-                          <SelectItem value="check">Check</SelectItem>
-                          <SelectItem value="cash">Cash</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="donationNotes">Notes (Optional)</Label>
-                      <Textarea id="donationNotes" placeholder="Any specific notes about this donation..." rows={2} />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" onClick={() => setIsLogDonationDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button type="submit">Log Donation</Button>
-                    </div>
-                  </form>
+                    <Button onClick={() => setIsAddingScholarship(false)} className="w-full rounded-lg">
+                      Create Scholarship
+                    </Button>
+                  </div>
                 </DialogContent>
               </Dialog>
             </div>
           )}
         </div>
 
-        {/* Overall Statistics */}
+        {/* Overview Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Raised</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
+          <Card className="rounded-xl card-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Total Raised</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${totalRaisedAcrossAllCampaigns.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Across all campaigns</p>
+              <div className="flex items-center justify-between">
+                <div className="text-2xl font-bold text-green-600">${totalRaised.toLocaleString()}</div>
+                <TrendingUp className="h-5 w-5 text-green-600" />
+              </div>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overall Goal</CardTitle>
-              <Target className="h-4 w-4 text-blue-600" />
+          <Card className="rounded-xl card-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Active Campaigns</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${totalGoalAcrossAllCampaigns.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Combined target</p>
+              <div className="flex items-center justify-between">
+                <div className="text-2xl font-bold text-aqua-600">{activeCampaigns}</div>
+                <Target className="h-5 w-5 text-aqua-600" />
+              </div>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Progress</CardTitle>
-              <TrendingUp className="h-4 w-4 text-purple-600" />
+          <Card className="rounded-xl card-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Total Donations</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{overallProgress.toFixed(1)}%</div>
-              <Progress value={overallProgress} className="mt-2" />
-              <p className="text-xs text-muted-foreground mt-2">
-                {totalGoalAcrossAllCampaigns - totalRaisedAcrossAllCampaigns > 0 
-                  ? `$${(totalGoalAcrossAllCampaigns - totalRaisedAcrossAllCampaigns).toLocaleString()} to go`
-                  : 'Goal achieved!'
-                }
-              </p>
+              <div className="flex items-center justify-between">
+                <div className="text-2xl font-bold text-gold-600">{totalDonations}</div>
+                <Users className="h-5 w-5 text-gold-600" />
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Campaign Filters */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Select value={filterCampaignType} onValueChange={setFilterCampaignType}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Filter by type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="chapter">Chapter</SelectItem>
-                  <SelectItem value="regional">Regional</SelectItem>
-                  <SelectItem value="national">National</SelectItem>
-                  <SelectItem value="scholarship">Scholarship</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={filterCampaignStatus} onValueChange={setFilterCampaignStatus}>
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="upcoming">Upcoming</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Tabs */}
+        <Tabs defaultValue="campaigns" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 rounded-lg">
+            <TabsTrigger value="campaigns" className="rounded-md">Campaigns</TabsTrigger>
+            <TabsTrigger value="scholarships" className="rounded-md">Scholarships</TabsTrigger>
+            <TabsTrigger value="donations" className="rounded-md">Recent Donations</TabsTrigger>
+          </TabsList>
 
-        {/* Fundraising Campaigns List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Fundraising Campaigns</CardTitle>
-            <CardDescription>Overview of all active, completed, and upcoming campaigns</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <TabsContent value="campaigns" className="space-y-6">
+            {/* Filters */}
+            <Card className="rounded-xl card-shadow">
+              <CardContent className="pt-6">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Input
+                        placeholder="Search campaigns..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  <Select value={filterCategory} onValueChange={setFilterCategory}>
+                    <SelectTrigger className="w-full sm:w-40 rounded-lg">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="general">General</SelectItem>
+                      <SelectItem value="scholarship">Scholarship</SelectItem>
+                      <SelectItem value="charity">Charity</SelectItem>
+                      <SelectItem value="event">Event</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="w-full sm:w-32 rounded-lg">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="paused">Paused</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Campaigns Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {filteredCampaigns.map((campaign) => (
-                <div key={campaign.id} className="p-4 border rounded-lg hover:bg-gray-50">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        <h3 className="font-medium">{campaign.name}</h3>
-                        <div className="flex gap-2">
-                          <Badge variant={getTypeColor(campaign.type)}>{campaign.type}</Badge>
-                          <Badge variant={getStatusColor(campaign.status)}>{campaign.status}</Badge>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600 line-clamp-2">{campaign.description}</p>
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs text-gray-500">
-                        <span className="flex items-center">
-                          <Calendar className="mr-1 h-3 w-3" />
-                          {new Date(campaign.startDate).toLocaleDateString()} - {new Date(campaign.endDate).toLocaleDateString()}
-                        </span>
-                        <span>Beneficiary: {campaign.beneficiary}</span>
+                <Card key={campaign.id} className="rounded-xl card-shadow card-hover-effect">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg leading-tight line-clamp-2">{campaign.title}</CardTitle>
+                        <CardDescription className="line-clamp-2 mt-1">{campaign.description}</CardDescription>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <span className="text-lg font-semibold text-green-600">
-                        ${campaign.raised.toLocaleString()} / ${campaign.goal.toLocaleString()}
-                      </span>
-                      <Progress value={(campaign.raised / campaign.goal) * 100} className="w-24 h-2" />
-                      {(user.role === 'admin' || user.role === 'national_hq' || user.role === 'regional' || user.role === 'chapter') && (
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline">
-                            <Download className="mr-1 h-4 w-4" />
-                            Report
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            <Upload className="mr-1 h-4 w-4" />
-                            Edit
-                          </Button>
-                        </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <Badge variant={getCategoryColor(campaign.category)} className="rounded-md text-xs">{campaign.category}</Badge>
+                      <Badge variant={getStatusColor(campaign.status)} className="rounded-md text-xs">{campaign.status}</Badge>
+                      {campaign.region && <Badge variant="outline" className="rounded-md text-xs">{campaign.region}</Badge>}
+                      {campaign.chapter && <Badge variant="outline" className="rounded-md text-xs">{campaign.chapter}</Badge>}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Progress</span>
+                        <span className="font-medium">
+                          ${campaign.raisedAmount.toLocaleString()} / ${campaign.goalAmount.toLocaleString()}
+                        </span>
+                      </div>
+                      <Progress value={getProgressPercentage(campaign.raisedAmount, campaign.goalAmount)} className="h-2" />
+                      <div className="text-xs text-gray-600 text-center">
+                        {getProgressPercentage(campaign.raisedAmount, campaign.goalAmount).toFixed(1)}% of goal reached
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-500">Donations</p>
+                        <p className="font-medium">{campaign.donationCount}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">End Date</p>
+                        <p className="font-medium">{new Date(campaign.endDate).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+
+                    <div className="text-sm">
+                      <p className="text-gray-500">Organized by</p>
+                      <p className="font-medium">{campaign.organizer}</p>
+                    </div>
+
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full rounded-lg transition-all duration-300 hover:scale-[1.01]"
+                      onClick={() => setSelectedCampaign(campaign)}
+                    >
+                      <DollarSign className="mr-2 h-3 w-3" />
+                      {campaign.status === 'active' ? 'Donate' : 'View Details'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="scholarships" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {scholarships.map((scholarship) => (
+                <Card key={scholarship.id} className="rounded-xl card-shadow card-hover-effect">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg leading-tight flex items-center gap-2">
+                          <Award className="h-5 w-5 text-gold-600" />
+                          {scholarship.name}
+                        </CardTitle>
+                        <CardDescription className="line-clamp-2 mt-1">{scholarship.description}</CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <Badge variant="default" className="rounded-md text-xs">{scholarship.category}</Badge>
+                      <Badge variant="outline" className="rounded-md text-xs">${scholarship.amount}</Badge>
+                      {scholarship.awarded && (
+                        <Badge variant="secondary" className="rounded-md text-xs bg-green-600">Awarded</Badge>
                       )}
                     </div>
-                  </div>
-                </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-500">Deadline</p>
+                        <p className="font-medium flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(scholarship.deadline).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Applicants</p>
+                        <p className="font-medium">{scholarship.applicants}</p>
+                      </div>
+                    </div>
+
+                    {scholarship.awarded && scholarship.recipient && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <p className="text-sm text-green-800">
+                          <strong>Awarded to:</strong> {scholarship.recipient}
+                        </p>
+                      </div>
+                    )}
+
+                    <div>
+                      <p className="text-sm font-medium mb-2">Requirements:</p>
+                      <ul className="text-xs text-gray-600 space-y-1">
+                        {scholarship.requirements.map((req, index) => (
+                          <li key={index} className="flex items-start gap-1">
+                            <span className="text-aqua-600">•</span>
+                            {req}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="text-sm">
+                      <p className="text-gray-500">Funded by</p>
+                      <p className="font-medium">{scholarship.fundedBy}</p>
+                    </div>
+
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full rounded-lg transition-all duration-300 hover:scale-[1.01]"
+                      disabled={scholarship.awarded}
+                    >
+                      {scholarship.awarded ? 'Application Closed' : 'Apply Now'}
+                    </Button>
+                  </CardContent>
+                </Card>
               ))}
             </div>
+          </TabsContent>
 
-            {filteredCampaigns.length === 0 && (
-              <div className="text-center py-12">
-                <Handshake className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <p className="text-gray-500">No fundraising campaigns found matching your criteria.</p>
-                <p className="text-sm text-gray-400">Try creating a new campaign!</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent Donations */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Donations</CardTitle>
-            <CardDescription>Latest contributions to all campaigns</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {donations.map((donation) => (
-                <div key={donation.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{donation.donorName}</p>
-                    <p className="text-sm text-gray-600">
-                      Donated to: {campaigns.find(c => c.id === donation.campaignId)?.name}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-semibold text-green-600">${donation.amount.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">{new Date(donation.date).toLocaleDateString()}</p>
-                  </div>
+          <TabsContent value="donations" className="space-y-6">
+            <Card className="rounded-xl card-shadow">
+              <CardHeader>
+                <CardTitle>Recent Donations</CardTitle>
+                <CardDescription>Latest contributions to our campaigns</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {recentDonations.map((donation) => {
+                    const campaign = campaigns.find(c => c.id === donation.campaignId);
+                    return (
+                      <div key={donation.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-4">
+                          <div className="bg-aqua-100 p-2 rounded-lg">
+                            <DollarSign className="h-4 w-4 text-aqua-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{donation.donorName}</p>
+                            <p className="text-sm text-gray-600">{campaign?.title}</p>
+                            {donation.message && (
+                              <p className="text-xs text-gray-500 italic">"{donation.message}"</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-green-600">${donation.amount}</p>
+                          <p className="text-xs text-gray-500">{new Date(donation.donatedAt).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-            {donations.length === 0 && (
-              <div className="text-center py-12">
-                <DollarSign className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <p className="text-gray-500">No donations recorded yet.</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {filteredCampaigns.length === 0 && (
+          <Card className="rounded-xl card-shadow">
+            <CardContent className="text-center py-12">
+              <DollarSign className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-500">No campaigns found matching your criteria.</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </Layout>
   );

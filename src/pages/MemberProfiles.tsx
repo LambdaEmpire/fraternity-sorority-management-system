@@ -6,12 +6,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Search, Filter, UserPlus, Mail, Phone } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Search, Filter, UserPlus, Mail, Phone, Tag, Plus, X } from 'lucide-react';
 import { User } from '../App';
 
 interface MemberProfilesProps {
   user: User;
   onLogout: () => void;
+}
+
+interface CustomLabel {
+  id: string;
+  text: string;
+  color: string;
+  createdBy: string;
+  createdAt: string;
 }
 
 interface Member {
@@ -30,6 +40,7 @@ interface Member {
   avatar?: string;
   chapter?: string;
   region?: string;
+  customLabels?: CustomLabel[];
 }
 
 const MemberProfiles = ({ user, onLogout }: MemberProfilesProps) => {
@@ -38,9 +49,13 @@ const MemberProfiles = ({ user, onLogout }: MemberProfilesProps) => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterChapter, setFilterChapter] = useState('all');
   const [filterRegion, setFilterRegion] = useState('all');
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [newLabelText, setNewLabelText] = useState('');
+  const [newLabelColor, setNewLabelColor] = useState('blue');
+  const [members, setMembers] = useState<Member[]>([]);
 
-  // Mock member data with LEM prefix and organizational levels
-  const members: Member[] = [
+  // Initialize mock member data with LEM prefix and organizational levels
+  const initializeMembers = (): Member[] => [
     {
       id: '1',
       name: 'Sarah Johnson',
@@ -55,7 +70,11 @@ const MemberProfiles = ({ user, onLogout }: MemberProfilesProps) => {
       serviceHours: 45,
       duesStatus: 'paid',
       chapter: 'Alpha Chi Omega - Beta Chapter',
-      region: 'Southeast Region'
+      region: 'Southeast Region',
+      customLabels: [
+        { id: '1', text: 'Outstanding Leader', color: 'gold', createdBy: 'Admin', createdAt: '2024-01-15' },
+        { id: '2', text: 'Scholarship Recipient', color: 'blue', createdBy: 'Admin', createdAt: '2024-02-01' }
+      ]
     },
     {
       id: '2',
@@ -71,7 +90,10 @@ const MemberProfiles = ({ user, onLogout }: MemberProfilesProps) => {
       serviceHours: 38,
       duesStatus: 'paid',
       chapter: 'Alpha Chi Omega - Beta Chapter',
-      region: 'Southeast Region'
+      region: 'Southeast Region',
+      customLabels: [
+        { id: '3', text: 'Event Coordinator', color: 'green', createdBy: 'Admin', createdAt: '2024-01-20' }
+      ]
     },
     {
       id: '3',
@@ -87,7 +109,10 @@ const MemberProfiles = ({ user, onLogout }: MemberProfilesProps) => {
       serviceHours: 12,
       duesStatus: 'pending',
       chapter: 'Sigma Chi - Gamma Chapter',
-      region: 'Midwest Region'
+      region: 'Midwest Region',
+      customLabels: [
+        { id: '4', text: 'New Member', color: 'purple', createdBy: 'Chapter Officer', createdAt: '2024-03-01' }
+      ]
     },
     {
       id: '4',
@@ -103,7 +128,11 @@ const MemberProfiles = ({ user, onLogout }: MemberProfilesProps) => {
       serviceHours: 52,
       duesStatus: 'overdue',
       chapter: 'Kappa Kappa Gamma - Delta Chapter',
-      region: 'Northeast Region'
+      region: 'Northeast Region',
+      customLabels: [
+        { id: '5', text: 'Financial Expert', color: 'yellow', createdBy: 'Admin', createdAt: '2024-01-10' },
+        { id: '6', text: 'Needs Follow-up', color: 'red', createdBy: 'Admin', createdAt: '2024-03-15' }
+      ]
     },
     {
       id: '5',
@@ -119,12 +148,65 @@ const MemberProfiles = ({ user, onLogout }: MemberProfilesProps) => {
       serviceHours: 41,
       duesStatus: 'paid',
       chapter: 'Alpha Alpha Alpha',
-      region: 'Midwest Region'
+      region: 'Midwest Region',
+      customLabels: [
+        { id: '7', text: 'Communication Lead', color: 'teal', createdBy: 'Regional Officer', createdAt: '2024-02-20' }
+      ]
     }
   ];
 
+  // Initialize members on component mount
+  useState(() => {
+    setMembers(initializeMembers());
+  });
+
   const chapters = Array.from(new Set(members.map(m => m.chapter))).filter(Boolean) as string[];
   const regions = Array.from(new Set(members.map(m => m.region))).filter(Boolean) as string[];
+
+  const addCustomLabel = (memberId: string, label: CustomLabel) => {
+    setMembers(prev => prev.map(member => 
+      member.id === memberId 
+        ? { ...member, customLabels: [...(member.customLabels || []), label] }
+        : member
+    ));
+  };
+
+  const removeCustomLabel = (memberId: string, labelId: string) => {
+    setMembers(prev => prev.map(member => 
+      member.id === memberId 
+        ? { ...member, customLabels: (member.customLabels || []).filter(label => label.id !== labelId) }
+        : member
+    ));
+  };
+
+  const handleAddLabel = () => {
+    if (!selectedMember || !newLabelText.trim()) return;
+
+    const newLabel: CustomLabel = {
+      id: Date.now().toString(),
+      text: newLabelText.trim(),
+      color: newLabelColor,
+      createdBy: user.name,
+      createdAt: new Date().toISOString().split('T')[0]
+    };
+
+    addCustomLabel(selectedMember.id, newLabel);
+    setNewLabelText('');
+    setNewLabelColor('blue');
+  };
+
+  const getLabelColorClass = (color: string) => {
+    const colorMap: { [key: string]: string } = {
+      'blue': 'bg-blue-100 text-blue-800 border-blue-200',
+      'green': 'bg-green-100 text-green-800 border-green-200',
+      'yellow': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      'red': 'bg-red-100 text-red-800 border-red-200',
+      'purple': 'bg-purple-100 text-purple-800 border-purple-200',
+      'teal': 'bg-teal-100 text-teal-800 border-teal-200',
+      'gold': 'bg-amber-100 text-amber-800 border-amber-200'
+    };
+    return colorMap[color] || 'bg-gray-100 text-gray-800 border-gray-200';
+  };
 
   const filteredMembers = members.filter(member => {
     const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -290,9 +372,32 @@ const MemberProfiles = ({ user, onLogout }: MemberProfilesProps) => {
                 <div className="flex flex-wrap gap-2 mt-3">
                   <Badge variant={getRoleColor(member.role)} className="rounded-md">{member.role}</Badge>
                   <Badge variant={getStatusColor(member.status)} className="rounded-md">{member.status}</Badge>
-                  {member.chapter && <Badge variant="outline" className="rounded-md">{member.chapter}</Badge>}
-                  {member.region && <Badge variant="outline" className="rounded-md">{member.region}</Badge>}
+                  {member.chapter && <Badge variant="outline" className="rounded-md text-xs">{member.chapter}</Badge>}
+                  {member.region && <Badge variant="outline" className="rounded-md text-xs">{member.region}</Badge>}
                 </div>
+                
+                {/* Custom Labels */}
+                {member.customLabels && member.customLabels.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {member.customLabels.map((label) => (
+                      <span
+                        key={label.id}
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border ${getLabelColorClass(label.color)}`}
+                      >
+                        <Tag className="h-3 w-3" />
+                        {label.text}
+                        {(user.role === 'admin' || user.role === 'national_hq') && (
+                          <button
+                            onClick={() => removeCustomLabel(member.id, label.id)}
+                            className="ml-1 hover:bg-red-100 rounded-full p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="space-y-2 text-sm">
@@ -331,10 +436,92 @@ const MemberProfiles = ({ user, onLogout }: MemberProfilesProps) => {
                 </div>
 
                 {(user.role === 'admin' || user.role === 'officer' || user.role === 'national_hq' || user.role === 'regional' || user.role === 'chapter') && (
-                  <div className="pt-3 border-t border-gray-200">
+                  <div className="pt-3 border-t border-gray-200 space-y-2">
                     <Button variant="outline" size="sm" className="w-full rounded-lg transition-all duration-300 hover:scale-[1.01]">
                       View Details
                     </Button>
+                    {(user.role === 'admin' || user.role === 'national_hq') && (
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full rounded-lg transition-all duration-300 hover:scale-[1.01]"
+                            onClick={() => setSelectedMember(member)}
+                          >
+                            <Tag className="mr-2 h-3 w-3" />
+                            Manage Labels
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                          <DialogHeader>
+                            <DialogTitle>Manage Labels for {member.name}</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            {/* Current Labels */}
+                            <div>
+                              <Label className="text-sm font-medium">Current Labels</Label>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {member.customLabels && member.customLabels.length > 0 ? (
+                                  member.customLabels.map((label) => (
+                                    <span
+                                      key={label.id}
+                                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border ${getLabelColorClass(label.color)}`}
+                                    >
+                                      <Tag className="h-3 w-3" />
+                                      {label.text}
+                                      <button
+                                        onClick={() => removeCustomLabel(member.id, label.id)}
+                                        className="ml-1 hover:bg-red-100 rounded-full p-0.5"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </span>
+                                  ))
+                                ) : (
+                                  <p className="text-sm text-gray-500">No custom labels</p>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Add New Label */}
+                            <div className="border-t pt-4">
+                              <Label className="text-sm font-medium">Add New Label</Label>
+                              <div className="space-y-3 mt-2">
+                                <Input
+                                  placeholder="Label text"
+                                  value={newLabelText}
+                                  onChange={(e) => setNewLabelText(e.target.value)}
+                                  className="rounded-lg"
+                                />
+                                <Select value={newLabelColor} onValueChange={setNewLabelColor}>
+                                  <SelectTrigger className="rounded-lg">
+                                    <SelectValue placeholder="Select color" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="blue">Blue</SelectItem>
+                                    <SelectItem value="green">Green</SelectItem>
+                                    <SelectItem value="yellow">Yellow</SelectItem>
+                                    <SelectItem value="red">Red</SelectItem>
+                                    <SelectItem value="purple">Purple</SelectItem>
+                                    <SelectItem value="teal">Teal</SelectItem>
+                                    <SelectItem value="gold">Gold</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  onClick={handleAddLabel}
+                                  disabled={!newLabelText.trim()}
+                                  className="w-full rounded-lg"
+                                >
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  Add Label
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )}
                   </div>
                 )}
               </CardContent>
